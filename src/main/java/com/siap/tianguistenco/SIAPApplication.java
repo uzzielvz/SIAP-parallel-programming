@@ -2,6 +2,8 @@ package com.siap.tianguistenco;
 
 import com.formdev.flatlaf.FlatLightLaf;
 import com.siap.tianguistenco.datos.DatabaseInitializer;
+import com.siap.tianguistenco.datos.UsuarioDAO;
+import com.siap.tianguistenco.gui.CatalogoFrame;
 import com.siap.tianguistenco.model.CarritoCompra;
 import com.siap.tianguistenco.threads.*;
 
@@ -24,6 +26,10 @@ public class SIAPApplication {
     private Thread hiloAplicadorDescuentos;
     private Thread hiloFinalizadorCompra;
     private Thread hiloGeneradorTicket;
+    private Thread hiloGestorTarjetas;
+    private Thread hiloGestorHistorial;
+    private Thread hiloGestorDevoluciones;
+    private Thread hiloGestorEnvio;
     
     // Gestores de hilos
     private GestorAutenticacion gestorAutenticacion;
@@ -33,6 +39,10 @@ public class SIAPApplication {
     private AplicadorDescuentos aplicadorDescuentos;
     private FinalizadorCompra finalizadorCompra;
     private GeneradorTicket generadorTicket;
+    private GestorTarjetas gestorTarjetas;
+    private GestorHistorial gestorHistorial;
+    private GestorDevoluciones gestorDevoluciones;
+    private GestorEnvio gestorEnvio;
 
     public SIAPApplication() {
         this.usuarioAutenticado = new AtomicBoolean(false);
@@ -130,6 +140,15 @@ public class SIAPApplication {
         try {
             String usuario = gestorAutenticacion.getUsuarioActual();
             
+            // Obtener ID del usuario
+            UsuarioDAO usuarioDAO = new UsuarioDAO();
+            int usuarioId = usuarioDAO.obtenerIdUsuario(usuario);
+            
+            if (usuarioId < 0) {
+                System.err.println("Error: No se pudo obtener el ID del usuario");
+                return;
+            }
+            
             // Hilo 2: GestorSesion
             gestorSesion = new GestorSesion(usuarioAutenticado, aplicacionActiva, usuario);
             hiloSesion = new Thread(gestorSesion, "GestorSesion");
@@ -138,13 +157,70 @@ public class SIAPApplication {
             // Hilo 6: FinalizadorCompra
             finalizadorCompra = new FinalizadorCompra(usuarioAutenticado, aplicacionActiva, 
                 carritoCompra, gestorSesion, generadorTicket);
+            finalizadorCompra.setUsuarioId(usuarioId);
             hiloFinalizadorCompra = new Thread(finalizadorCompra, "FinalizadorCompra");
             hiloFinalizadorCompra.start();
 
-            System.out.println("Hilos post-autenticación iniciados para usuario: " + usuario);
+            // Hilo 8: GestorTarjetas
+            gestorTarjetas = new GestorTarjetas(usuarioAutenticado, aplicacionActiva, usuarioId);
+            hiloGestorTarjetas = new Thread(gestorTarjetas, "GestorTarjetas");
+            hiloGestorTarjetas.start();
+
+            // Hilo 9: GestorHistorial
+            gestorHistorial = new GestorHistorial(usuarioAutenticado, aplicacionActiva, usuarioId);
+            hiloGestorHistorial = new Thread(gestorHistorial, "GestorHistorial");
+            hiloGestorHistorial.start();
+
+            // Hilo 10: GestorDevoluciones
+            gestorDevoluciones = new GestorDevoluciones(usuarioAutenticado, aplicacionActiva, usuarioId);
+            hiloGestorDevoluciones = new Thread(gestorDevoluciones, "GestorDevoluciones");
+            hiloGestorDevoluciones.start();
+
+            // Hilo 11: GestorEnvio
+            gestorEnvio = new GestorEnvio(usuarioAutenticado, aplicacionActiva);
+            hiloGestorEnvio = new Thread(gestorEnvio, "GestorEnvio");
+            hiloGestorEnvio.start();
+
+            // Conectar gestores con CatalogoFrame
+            conectarGestoresConCatalogo();
+
+            System.out.println("Hilos post-autenticación iniciados para usuario: " + usuario + " (ID: " + usuarioId + ")");
             
         } catch (Exception e) {
             System.err.println("Error al inicializar hilos post-autenticación: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Conecta los gestores con la ventana del catálogo
+     */
+    private void conectarGestoresConCatalogo() {
+        try {
+            // Esperar un poco para que el catálogo se cree
+            Thread.sleep(500);
+            
+            if (selectorProductos != null) {
+                CatalogoFrame catalogoFrame = selectorProductos.getCatalogoFrame();
+                if (catalogoFrame != null) {
+                    catalogoFrame.setGestores(gestorTarjetas, gestorEnvio, finalizadorCompra, 
+                                             gestorHistorial, gestorDevoluciones);
+                    System.out.println("Gestores conectados con CatalogoFrame");
+                } else {
+                    System.out.println("CatalogoFrame aún no está disponible, reintentando...");
+                    // Reintentar después de un delay
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(1000);
+                            conectarGestoresConCatalogo();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }).start();
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error al conectar gestores con catálogo: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -188,7 +264,9 @@ public class SIAPApplication {
         Thread[] hilos = {
             hiloAutenticacion, hiloSesion, hiloSelectorProductos, 
             hiloCalculadorPrecio, hiloAplicadorDescuentos, 
-            hiloFinalizadorCompra, hiloGeneradorTicket
+            hiloFinalizadorCompra, hiloGeneradorTicket,
+            hiloGestorTarjetas, hiloGestorHistorial, 
+            hiloGestorDevoluciones, hiloGestorEnvio
         };
         
         for (Thread hilo : hilos) {

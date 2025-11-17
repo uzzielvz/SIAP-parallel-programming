@@ -63,8 +63,79 @@ public class DatabaseInitializer {
                 "fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP" +
                 ")";
             
+            // Crear tabla tarjetas
+            String crearTarjetas = "CREATE TABLE IF NOT EXISTS tarjetas (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "usuario_id INTEGER NOT NULL, " +
+                "numero_tarjeta TEXT NOT NULL, " +
+                "nombre_titular TEXT NOT NULL, " +
+                "fecha_vencimiento TEXT NOT NULL, " +
+                "tipo TEXT NOT NULL, " +
+                "activa INTEGER DEFAULT 1, " +
+                "fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+                "FOREIGN KEY (usuario_id) REFERENCES usuarios(id)" +
+                ")";
+            
+            // Crear tabla compras
+            String crearCompras = "CREATE TABLE IF NOT EXISTS compras (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "usuario_id INTEGER NOT NULL, " +
+                "folio TEXT UNIQUE NOT NULL, " +
+                "fecha DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+                "total REAL NOT NULL, " +
+                "descuento REAL DEFAULT 0, " +
+                "estado TEXT DEFAULT 'COMPLETADA', " +
+                "tipo_envio TEXT DEFAULT 'TIENDA', " +
+                "direccion_envio TEXT, " +
+                "costo_envio REAL DEFAULT 0, " +
+                "FOREIGN KEY (usuario_id) REFERENCES usuarios(id)" +
+                ")";
+            
+            // Crear tabla compras_items
+            String crearComprasItems = "CREATE TABLE IF NOT EXISTS compras_items (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "compra_id INTEGER NOT NULL, " +
+                "producto_id TEXT NOT NULL, " +
+                "nombre_producto TEXT NOT NULL, " +
+                "cantidad INTEGER NOT NULL, " +
+                "precio_unitario REAL NOT NULL, " +
+                "subtotal REAL NOT NULL, " +
+                "FOREIGN KEY (compra_id) REFERENCES compras(id) ON DELETE CASCADE, " +
+                "FOREIGN KEY (producto_id) REFERENCES productos(id)" +
+                ")";
+            
+            // Crear tabla devoluciones
+            String crearDevoluciones = "CREATE TABLE IF NOT EXISTS devoluciones (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "compra_id INTEGER NOT NULL, " +
+                "folio_compra TEXT NOT NULL, " +
+                "fecha DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+                "motivo TEXT NOT NULL, " +
+                "estado TEXT DEFAULT 'PENDIENTE', " +
+                "monto_devolucion REAL NOT NULL, " +
+                "observaciones TEXT, " +
+                "FOREIGN KEY (compra_id) REFERENCES compras(id)" +
+                ")";
+            
+            // Crear tabla metodos_pago
+            String crearMetodosPago = "CREATE TABLE IF NOT EXISTS metodos_pago (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                "compra_id INTEGER NOT NULL, " +
+                "tipo_pago TEXT NOT NULL, " +
+                "tarjeta_id INTEGER, " +
+                "monto REAL NOT NULL, " +
+                "fecha DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+                "FOREIGN KEY (compra_id) REFERENCES compras(id), " +
+                "FOREIGN KEY (tarjeta_id) REFERENCES tarjetas(id)" +
+                ")";
+            
             stmt.execute(crearUsuarios);
             stmt.execute(crearProductos);
+            stmt.execute(crearTarjetas);
+            stmt.execute(crearCompras);
+            stmt.execute(crearComprasItems);
+            stmt.execute(crearDevoluciones);
+            stmt.execute(crearMetodosPago);
             
             System.out.println("Tablas creadas correctamente");
         }

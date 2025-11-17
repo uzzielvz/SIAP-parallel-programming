@@ -2,7 +2,7 @@ package com.siap.tianguistenco.gui;
 
 import com.siap.tianguistenco.datos.ProductoDAO;
 import com.siap.tianguistenco.model.*;
-import com.siap.tianguistenco.threads.SelectorProductos;
+import com.siap.tianguistenco.threads.*;
 
 import java.util.List;
 
@@ -17,6 +17,11 @@ public class CatalogoFrame extends JFrame {
     private final SelectorProductos selectorProductos;
     private final CarritoCompra carritoCompra;
     private final ProductoDAO productoDAO;
+    private GestorTarjetas gestorTarjetas;
+    private GestorEnvio gestorEnvio;
+    private FinalizadorCompra finalizadorCompra;
+    private GestorHistorial gestorHistorial;
+    private GestorDevoluciones gestorDevoluciones;
     private JTabbedPane tabbedPane;
     private JList<ItemCarrito> listaCarrito;
     private JLabel etiquetaTotal;
@@ -24,6 +29,8 @@ public class CatalogoFrame extends JFrame {
     private JLabel etiquetaTotalFinal;
     private JButton botonPagar;
     private JButton botonVerTicket;
+    private JButton botonHistorial;
+    private JButton botonDevoluciones;
     private DefaultListModel<ItemCarrito> modeloListaCarrito;
     private final DecimalFormat formatoMoneda = new DecimalFormat("$#,##0.00");
 
@@ -37,6 +44,16 @@ public class CatalogoFrame extends JFrame {
         configurarVentana();
         cargarProductos();
         actualizarCarrito();
+    }
+
+    public void setGestores(GestorTarjetas gestorTarjetas, GestorEnvio gestorEnvio, 
+                           FinalizadorCompra finalizadorCompra, GestorHistorial gestorHistorial,
+                           GestorDevoluciones gestorDevoluciones) {
+        this.gestorTarjetas = gestorTarjetas;
+        this.gestorEnvio = gestorEnvio;
+        this.finalizadorCompra = finalizadorCompra;
+        this.gestorHistorial = gestorHistorial;
+        this.gestorDevoluciones = gestorDevoluciones;
     }
 
     private void inicializarComponentes() {
@@ -137,9 +154,31 @@ public class CatalogoFrame extends JFrame {
         botonVerTicket.setPreferredSize(new Dimension(120, 35));
         botonVerTicket.addActionListener(e -> generarTicket());
         botonVerTicket.setVisible(!carritoCompra.estaVacio());
+
+        // Botón historial
+        botonHistorial = new JButton("Historial");
+        botonHistorial.setFont(new Font("Arial", Font.BOLD, 12));
+        botonHistorial.setBackground(new Color(108, 117, 125));
+        botonHistorial.setForeground(Color.WHITE);
+        botonHistorial.setBorderPainted(false);
+        botonHistorial.setFocusPainted(false);
+        botonHistorial.setPreferredSize(new Dimension(100, 35));
+        botonHistorial.addActionListener(e -> abrirHistorial());
+
+        // Botón devoluciones
+        botonDevoluciones = new JButton("Devoluciones");
+        botonDevoluciones.setFont(new Font("Arial", Font.BOLD, 12));
+        botonDevoluciones.setBackground(new Color(220, 53, 69));
+        botonDevoluciones.setForeground(Color.WHITE);
+        botonDevoluciones.setBorderPainted(false);
+        botonDevoluciones.setFocusPainted(false);
+        botonDevoluciones.setPreferredSize(new Dimension(120, 35));
+        botonDevoluciones.addActionListener(e -> abrirDevoluciones());
         
         panelBotones.add(botonPagar);
         panelBotones.add(botonVerTicket);
+        panelBotones.add(botonHistorial);
+        panelBotones.add(botonDevoluciones);
         
         gbc.gridy = 3;
         gbc.anchor = GridBagConstraints.CENTER;
@@ -294,19 +333,92 @@ public class CatalogoFrame extends JFrame {
                 // Paso 1: Mostrar resumen de la compra
                 SwingUtilities.invokeLater(() -> mostrarResumenCompra());
                 
-                // Paso 2: Simular procesamiento de pago
-                if (simularProcesamientoPago()) {
-                    // Paso 3: Generar ticket
-                    SwingUtilities.invokeLater(() -> generarTicket());
+                // Paso 2: Seleccionar tipo de envío
+                final Compra.TipoEnvio[] tipoEnvio = {null};
+                final String[] direccionEnvio = {null};
+                final double[] costoEnvio = {0.0};
+                
+                if (gestorEnvio != null) {
+                    EnvioDialog envioDialog = new EnvioDialog(this, gestorEnvio, 
+                        carritoCompra.getTotalConDescuento());
+                    SwingUtilities.invokeLater(() -> envioDialog.setVisible(true));
                     
-                    // Paso 4: Limpiar carrito
+                    // Esperar a que el usuario seleccione el tipo de envío
+                    while (envioDialog.isVisible()) {
+                        Thread.sleep(100);
+                    }
+                    
+                    tipoEnvio[0] = envioDialog.getTipoEnvio();
+                    if (tipoEnvio[0] == null) {
+                        // Usuario canceló
+                        return;
+                    }
+                    direccionEnvio[0] = envioDialog.getDireccionEnvio();
+                    costoEnvio[0] = envioDialog.getCostoEnvio();
+                } else {
+                    tipoEnvio[0] = Compra.TipoEnvio.TIENDA;
+                }
+                
+                // Paso 3: Seleccionar/Registrar tarjeta
+                final Tarjeta[] tarjetaSeleccionada = {null};
+                if (gestorTarjetas != null) {
+                    TarjetaDialog tarjetaDialog = new TarjetaDialog(this, gestorTarjetas);
+                    SwingUtilities.invokeLater(() -> tarjetaDialog.setVisible(true));
+                    
+                    // Esperar a que el usuario seleccione una tarjeta
+                    while (tarjetaDialog.isVisible()) {
+                        Thread.sleep(100);
+                    }
+                    
+                    tarjetaSeleccionada[0] = tarjetaDialog.getTarjetaSeleccionada();
+                    if (tarjetaSeleccionada[0] == null) {
+                        // Usuario canceló
+                        return;
+                    }
+                }
+                
+                // Paso 4: Procesar pago con tarjeta
+                boolean pagoExitoso = false;
+                if (gestorTarjetas != null && tarjetaSeleccionada[0] != null) {
+                    double montoTotal = carritoCompra.getTotalConDescuento() + costoEnvio[0];
+                    pagoExitoso = gestorTarjetas.procesarPagoConTarjeta(
+                        tarjetaSeleccionada[0].getId(), montoTotal);
+                } else {
+                    // Simular pago en efectivo
+                    pagoExitoso = simularProcesamientoPago();
+                }
+                
+                if (pagoExitoso) {
+                    // Paso 5: Generar folio y guardar compra
+                    final String[] folio = {null};
+                    if (gestorHistorial != null) {
+                        folio[0] = gestorHistorial.generarFolio();
+                    } else {
+                        folio[0] = "SIAP-" + System.currentTimeMillis();
+                    }
+                    
+                    Compra compraGuardada = null;
+                    if (finalizadorCompra != null) {
+                        Integer tarjetaId = tarjetaSeleccionada[0] != null ? tarjetaSeleccionada[0].getId() : null;
+                        compraGuardada = finalizadorCompra.guardarCompra(
+                            folio[0], tipoEnvio[0], direccionEnvio[0], costoEnvio[0], tarjetaId);
+                    }
+                    
+                    // Paso 6: Generar ticket (con folio y datos de envío)
+                    final Compra.TipoEnvio tipoEnvioFinal = tipoEnvio[0];
+                    final String direccionEnvioFinal = direccionEnvio[0];
+                    final double costoEnvioFinal = costoEnvio[0];
+                    SwingUtilities.invokeLater(() -> generarTicket(folio[0], tipoEnvioFinal, direccionEnvioFinal, costoEnvioFinal));
+                    
+                    // Paso 7: Limpiar carrito
                     carritoCompra.limpiar();
                     SwingUtilities.invokeLater(() -> actualizarCarrito());
                     
-                    // Paso 5: Mostrar confirmación
-                    SwingUtilities.invokeLater(() -> mostrarConfirmacionCompra());
+                    // Paso 8: Mostrar confirmación
+                    final String folioFinal = folio[0];
+                    SwingUtilities.invokeLater(() -> mostrarConfirmacionCompra(folioFinal));
                     
-                    // Paso 6: Cerrar sesión después de un delay
+                    // Paso 9: Cerrar sesión después de un delay
                     cerrarSesionDespuesDeCompra();
                 } else {
                     SwingUtilities.invokeLater(() -> 
@@ -368,6 +480,10 @@ public class CatalogoFrame extends JFrame {
     }
     
     private void generarTicket() {
+        generarTicket(null, Compra.TipoEnvio.TIENDA, null, 0.0);
+    }
+
+    private void generarTicket(String folio, Compra.TipoEnvio tipoEnvio, String direccionEnvio, double costoEnvio) {
         // Crear ventana de ticket
         JDialog ticketDialog = new JDialog(this, "Ticket de Compra", true);
         ticketDialog.setSize(600, 500);
@@ -390,7 +506,16 @@ public class CatalogoFrame extends JFrame {
         StringBuilder ticket = new StringBuilder();
         ticket.append("Fecha: ").append(java.time.LocalDateTime.now().format(
             java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"))).append("\n");
-        ticket.append("Ticket: #").append(System.currentTimeMillis()).append("\n\n");
+        if (folio != null) {
+            ticket.append("Folio: ").append(folio).append("\n");
+        } else {
+            ticket.append("Ticket: #").append(System.currentTimeMillis()).append("\n");
+        }
+        ticket.append("Tipo de Envío: ").append(tipoEnvio.name()).append("\n");
+        if (direccionEnvio != null && !direccionEnvio.isEmpty()) {
+            ticket.append("Dirección: ").append(direccionEnvio).append("\n");
+        }
+        ticket.append("\n");
         
         for (ItemCarrito item : carritoCompra.getItems()) {
             ticket.append(String.format("%-30s x%2d = %8s\n",
@@ -402,7 +527,11 @@ public class CatalogoFrame extends JFrame {
         ticket.append("\n");
         ticket.append("Subtotal: ").append(formatoMoneda.format(carritoCompra.getTotal())).append("\n");
         ticket.append("Descuento: ").append(formatoMoneda.format(carritoCompra.getDescuento())).append("\n");
-        ticket.append("TOTAL: ").append(formatoMoneda.format(carritoCompra.getTotalConDescuento())).append("\n\n");
+        if (costoEnvio > 0) {
+            ticket.append("Costo de Envío: ").append(formatoMoneda.format(costoEnvio)).append("\n");
+        }
+        double totalFinal = carritoCompra.getTotalConDescuento() + costoEnvio;
+        ticket.append("TOTAL: ").append(formatoMoneda.format(totalFinal)).append("\n\n");
         ticket.append("¡Gracias por su compra!");
         
         detalles.setText(ticket.toString());
@@ -446,10 +575,18 @@ public class CatalogoFrame extends JFrame {
     }
     
     private void mostrarConfirmacionCompra() {
-        JOptionPane.showMessageDialog(this, 
-            "¡Compra realizada exitosamente!\n\n" +
-            "Su ticket ha sido generado.\n" +
-            "Gracias por su compra en SIAP Tianguistenco.", 
+        mostrarConfirmacionCompra(null);
+    }
+
+    private void mostrarConfirmacionCompra(String folio) {
+        String mensaje = "¡Compra realizada exitosamente!\n\n";
+        if (folio != null) {
+            mensaje += "Folio: " + folio + "\n";
+        }
+        mensaje += "Su ticket ha sido generado.\n";
+        mensaje += "Gracias por su compra en SIAP Tianguistenco.";
+        
+        JOptionPane.showMessageDialog(this, mensaje, 
             "Compra Exitosa", 
             JOptionPane.INFORMATION_MESSAGE);
     }
@@ -578,6 +715,39 @@ public class CatalogoFrame extends JFrame {
             }
         });
     }
+
+    /**
+     * Abre la ventana de historial de compras
+     */
+    private void abrirHistorial() {
+        if (gestorHistorial == null) {
+            JOptionPane.showMessageDialog(this, 
+                "El gestor de historial no está disponible", 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        HistorialComprasFrame historialFrame = new HistorialComprasFrame(gestorHistorial);
+        historialFrame.setVisible(true);
+    }
+
+    /**
+     * Abre la ventana de devoluciones
+     */
+    private void abrirDevoluciones() {
+        if (gestorHistorial == null || gestorDevoluciones == null) {
+            JOptionPane.showMessageDialog(this, 
+                "Los gestores necesarios no están disponibles", 
+                "Error", 
+                JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        DevolucionFrame devolucionFrame = new DevolucionFrame(gestorDevoluciones, gestorHistorial);
+        devolucionFrame.setVisible(true);
+    }
+
 
     /**
      * Renderer personalizado para los items del carrito

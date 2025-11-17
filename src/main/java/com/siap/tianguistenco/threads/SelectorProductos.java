@@ -148,4 +148,11 @@ public class SelectorProductos implements Runnable {
         // La lógica real del pago se maneja en FinalizadorCompra
         System.out.println("Solicitud de pago recibida en SelectorProductos");
     }
+
+    /**
+     * Obtiene la ventana del catálogo
+     */
+    public CatalogoFrame getCatalogoFrame() {
+        return catalogoFrame;
+    }
 }

@@ -1,11 +1,15 @@
 package com.siap.tianguistenco.threads;
 
-import com.siap.tianguistenco.model.CarritoCompra;
-import com.siap.tianguistenco.model.ItemCarrito;
+import com.siap.tianguistenco.datos.CompraDAO;
+import com.siap.tianguistenco.datos.MetodoPagoDAO;
+import com.siap.tianguistenco.model.*;
 
 import javax.swing.*;
 import java.awt.*;
 import java.text.DecimalFormat;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -18,6 +22,9 @@ public class FinalizadorCompra implements Runnable {
     private final CarritoCompra carritoCompra;
     private final GestorSesion gestorSesion;
     private final GeneradorTicket generadorTicket;
+    private final CompraDAO compraDAO;
+    private final MetodoPagoDAO metodoPagoDAO;
+    private int usuarioId;
     private boolean compraEnProceso;
     private final DecimalFormat formatoMoneda = new DecimalFormat("$#,##0.00");
 
@@ -29,7 +36,13 @@ public class FinalizadorCompra implements Runnable {
         this.carritoCompra = carritoCompra;
         this.gestorSesion = gestorSesion;
         this.generadorTicket = generadorTicket;
+        this.compraDAO = new CompraDAO();
+        this.metodoPagoDAO = new MetodoPagoDAO();
         this.compraEnProceso = false;
+    }
+
+    public void setUsuarioId(int usuarioId) {
+        this.usuarioId = usuarioId;
     }
 
     @Override
@@ -229,5 +242,60 @@ public class FinalizadorCompra implements Runnable {
             compraEnProceso = false;
             System.out.println("Compra cancelada por el usuario");
         }
+    }
+
+    /**
+     * Guarda una compra en la base de datos
+     */
+    public Compra guardarCompra(String folio, Compra.TipoEnvio tipoEnvio, String direccionEnvio, 
+                                double costoEnvio, Integer tarjetaId) {
+        try {
+            Compra compra = new Compra();
+            compra.setUsuarioId(usuarioId);
+            compra.setFolio(folio);
+            compra.setFecha(LocalDateTime.now());
+            compra.setTotal(carritoCompra.getTotal());
+            compra.setDescuento(carritoCompra.getDescuento());
+            compra.setEstado("COMPLETADA");
+            compra.setTipoEnvio(tipoEnvio);
+            compra.setDireccionEnvio(direccionEnvio);
+            compra.setCostoEnvio(costoEnvio);
+
+            // Convertir items del carrito a items de compra
+            List<CompraItem> itemsCompra = new ArrayList<>();
+            for (ItemCarrito itemCarrito : carritoCompra.getItems()) {
+                CompraItem item = new CompraItem();
+                item.setProductoId(itemCarrito.getProducto().getId());
+                item.setNombreProducto(itemCarrito.getProducto().getNombre());
+                item.setCantidad(itemCarrito.getCantidad());
+                item.setPrecioUnitario(itemCarrito.getProducto().getPrecio());
+                item.setSubtotal(itemCarrito.getSubtotal());
+                itemsCompra.add(item);
+            }
+            compra.setItems(itemsCompra);
+
+            // Guardar compra en BD
+            int compraId = compraDAO.guardarCompra(compra);
+            if (compraId > 0) {
+                compra.setId(compraId);
+
+                // Guardar método de pago
+                double montoTotal = compra.getTotalConDescuento();
+                if (tarjetaId != null) {
+                    metodoPagoDAO.registrarMetodoPago(compraId, "TARJETA", tarjetaId, montoTotal);
+                } else {
+                    metodoPagoDAO.registrarMetodoPago(compraId, "EFECTIVO", null, montoTotal);
+                }
+
+                System.out.println("Compra guardada exitosamente: Folio=" + folio + ", ID=" + compraId);
+                return compra;
+            }
+
+        } catch (Exception e) {
+            System.err.println("Error al guardar compra: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return null;
     }
 }
