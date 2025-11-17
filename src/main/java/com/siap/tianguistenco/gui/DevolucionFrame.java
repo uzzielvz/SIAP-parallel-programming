@@ -10,6 +10,7 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.text.DecimalFormat;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,8 +21,8 @@ public class DevolucionFrame extends JFrame {
     private GestorDevoluciones gestorDevoluciones;
     private GestorHistorial gestorHistorial;
     private Compra compraSeleccionada;
-    private JTextField campoFolio;
-    private JButton botonBuscar;
+    private JTable tablaHistorial;
+    private DefaultTableModel modeloHistorial;
     private JTable tablaItems;
     private DefaultTableModel modeloTabla;
     private JComboBox<Devolucion.MotivoDevolucion> comboMotivo;
@@ -30,6 +31,7 @@ public class DevolucionFrame extends JFrame {
     private JButton botonProcesar;
     private JButton botonCancelar;
     private final DecimalFormat formatoMoneda = new DecimalFormat("$#,##0.00");
+    private final DateTimeFormatter formatoFecha = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private List<CompraItem> itemsSeleccionados;
 
     public DevolucionFrame(GestorDevoluciones gestorDevoluciones, GestorHistorial gestorHistorial) {
@@ -38,6 +40,7 @@ public class DevolucionFrame extends JFrame {
         this.itemsSeleccionados = new ArrayList<>();
         inicializarComponentes();
         configurarVentana();
+        cargarHistorialCompras();
     }
 
     private void inicializarComponentes() {
@@ -45,23 +48,32 @@ public class DevolucionFrame extends JFrame {
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        // Panel superior - Búsqueda por folio
-        JPanel panelBusqueda = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        panelBusqueda.setBorder(BorderFactory.createTitledBorder("Buscar Compra"));
+        // Panel superior - Historial de compras
+        JPanel panelHistorial = new JPanel(new BorderLayout());
+        panelHistorial.setBorder(BorderFactory.createTitledBorder("Historial de Compras - Seleccione una compra"));
 
-        JLabel etiquetaFolio = new JLabel("Folio de Compra:");
-        campoFolio = new JTextField(20);
-        botonBuscar = new JButton("Buscar");
-        botonBuscar.setBackground(new Color(0, 102, 204));
-        botonBuscar.setForeground(Color.WHITE);
-        botonBuscar.setBorderPainted(false);
-        botonBuscar.addActionListener(e -> buscarCompra());
+        String[] columnasHistorial = {"Folio", "Fecha", "Total", "Estado", "Envío"};
+        modeloHistorial = new DefaultTableModel(columnasHistorial, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        tablaHistorial = new JTable(modeloHistorial);
+        tablaHistorial.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        tablaHistorial.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && tablaHistorial.getSelectedRow() != -1) {
+                seleccionarCompra();
+            }
+        });
+        JScrollPane scrollHistorial = new JScrollPane(tablaHistorial);
+        scrollHistorial.setPreferredSize(new Dimension(0, 200));
+        panelHistorial.add(scrollHistorial, BorderLayout.CENTER);
 
-        panelBusqueda.add(etiquetaFolio);
-        panelBusqueda.add(campoFolio);
-        panelBusqueda.add(botonBuscar);
+        // Panel central - Tabla de items de la compra seleccionada
+        JPanel panelItems = new JPanel(new BorderLayout());
+        panelItems.setBorder(BorderFactory.createTitledBorder("Items de la Compra Seleccionada"));
 
-        // Panel central - Tabla de items
         String[] columnas = {"Seleccionar", "Producto", "Cantidad", "Precio Unitario", "Subtotal"};
         modeloTabla = new DefaultTableModel(columnas, 0) {
             @Override
@@ -79,6 +91,7 @@ public class DevolucionFrame extends JFrame {
         tablaItems.getColumnModel().getColumn(0).setPreferredWidth(80);
         tablaItems.getColumnModel().getColumn(1).setPreferredWidth(300);
         JScrollPane scrollTabla = new JScrollPane(tablaItems);
+        panelItems.add(scrollTabla, BorderLayout.CENTER);
 
         // Panel de motivo y observaciones
         JPanel panelMotivo = new JPanel(new GridBagLayout());
@@ -93,6 +106,17 @@ public class DevolucionFrame extends JFrame {
         panelMotivo.add(etiquetaMotivo, gbc);
 
         comboMotivo = new JComboBox<>(Devolucion.MotivoDevolucion.values());
+        comboMotivo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                    boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof Devolucion.MotivoDevolucion) {
+                    setText(((Devolucion.MotivoDevolucion) value).getDescripcion());
+                }
+                return this;
+            }
+        });
         gbc.gridx = 1;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.weightx = 1.0;
@@ -146,43 +170,56 @@ public class DevolucionFrame extends JFrame {
         panelBotones.add(botonCancelar);
 
         // Layout principal
-        JPanel panelCentral = new JPanel(new BorderLayout());
-        panelCentral.add(scrollTabla, BorderLayout.CENTER);
-        panelCentral.add(panelMotivo, BorderLayout.SOUTH);
+        JSplitPane splitPanePrincipal = new JSplitPane(JSplitPane.VERTICAL_SPLIT, panelHistorial, panelItems);
+        splitPanePrincipal.setDividerLocation(200);
+        splitPanePrincipal.setResizeWeight(0.3);
 
-        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, panelBusqueda, panelCentral);
-        splitPane.setDividerLocation(80);
-        splitPane.setResizeWeight(0.1);
+        JPanel panelInferior = new JPanel(new BorderLayout());
+        panelInferior.add(panelMotivo, BorderLayout.CENTER);
+        panelInferior.add(panelBotones, BorderLayout.SOUTH);
 
-        add(splitPane, BorderLayout.CENTER);
-        add(panelBotones, BorderLayout.SOUTH);
+        JSplitPane splitPaneSecundario = new JSplitPane(JSplitPane.VERTICAL_SPLIT, splitPanePrincipal, panelInferior);
+        splitPaneSecundario.setDividerLocation(400);
+        splitPaneSecundario.setResizeWeight(0.6);
+
+        add(splitPaneSecundario, BorderLayout.CENTER);
 
         // Listener para actualizar monto cuando se seleccionan items
         tablaItems.getModel().addTableModelListener(e -> actualizarMontoDevolucion());
     }
 
     private void configurarVentana() {
-        setSize(800, 600);
+        setSize(900, 700);
         setLocationRelativeTo(null);
     }
 
-    private void buscarCompra() {
-        String folio = campoFolio.getText().trim();
-        if (folio.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Por favor ingrese un folio", 
-                "Error", JOptionPane.WARNING_MESSAGE);
+    private void cargarHistorialCompras() {
+        modeloHistorial.setRowCount(0);
+        List<Compra> compras = gestorHistorial.obtenerHistorialCompras();
+        for (Compra compra : compras) {
+            modeloHistorial.addRow(new Object[]{
+                compra.getFolio(),
+                compra.getFecha().format(formatoFecha),
+                formatoMoneda.format(compra.getTotalConDescuento()),
+                compra.getEstado(),
+                compra.getTipoEnvio().name()
+            });
+        }
+    }
+
+    private void seleccionarCompra() {
+        int filaSeleccionada = tablaHistorial.getSelectedRow();
+        if (filaSeleccionada < 0) {
             return;
         }
 
+        String folio = (String) modeloHistorial.getValueAt(filaSeleccionada, 0);
         compraSeleccionada = gestorHistorial.obtenerCompraPorFolio(folio);
-        if (compraSeleccionada == null) {
-            JOptionPane.showMessageDialog(this, "No se encontró una compra con ese folio", 
-                "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
-        cargarItemsCompra();
-        botonProcesar.setEnabled(true);
+        if (compraSeleccionada != null) {
+            cargarItemsCompra();
+            botonProcesar.setEnabled(true);
+        }
     }
 
     private void cargarItemsCompra() {
@@ -223,7 +260,7 @@ public class DevolucionFrame extends JFrame {
 
     private void procesarDevolucion() {
         if (compraSeleccionada == null) {
-            JOptionPane.showMessageDialog(this, "Por favor busque una compra primero", 
+            JOptionPane.showMessageDialog(this, "Por favor seleccione una compra primero", 
                 "Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -281,4 +318,3 @@ public class DevolucionFrame extends JFrame {
         }
     }
 }
-

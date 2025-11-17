@@ -1,0 +1,14 @@
+Fecha: 17/11/2025 13:21:20
+Ticket: #1763407280624
+Tipo de Envío: TIENDA
+
+Coca-Cola 600ml                x 2 =   $36.00
+Jugo del Valle Naranja         x 3 =   $84.00
+Choco Roles Marinela           x 3 =   $83.70
+Gansito Marinela               x 3 =   $62.70
+
+Subtotal: $266.40
+Descuento: $0.00
+TOTAL: $266.40
+
+¡Gracias por su compra!

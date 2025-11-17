@@ -330,10 +330,8 @@ public class CatalogoFrame extends JFrame {
         // Crear un nuevo hilo para el proceso de pago
         Thread procesoPago = new Thread(() -> {
             try {
-                // Paso 1: Mostrar resumen de la compra
-                SwingUtilities.invokeLater(() -> mostrarResumenCompra());
-                
-                // Paso 2: Seleccionar tipo de envío
+                // Paso 1: Seleccionar tipo de envío y PAGAR
+                System.out.println("=== PASO 1: Seleccionando tipo de envío ===");
                 final Compra.TipoEnvio[] tipoEnvio = {null};
                 final String[] direccionEnvio = {null};
                 final double[] costoEnvio = {0.0};
@@ -343,53 +341,91 @@ public class CatalogoFrame extends JFrame {
                         carritoCompra.getTotalConDescuento());
                     SwingUtilities.invokeLater(() -> envioDialog.setVisible(true));
                     
-                    // Esperar a que el usuario seleccione el tipo de envío
+                    // Esperar a que el usuario seleccione el tipo de envío y haga clic en PAGAR
+                    System.out.println("Esperando selección de envío y clic en PAGAR...");
                     while (envioDialog.isVisible()) {
                         Thread.sleep(100);
                     }
                     
                     tipoEnvio[0] = envioDialog.getTipoEnvio();
                     if (tipoEnvio[0] == null) {
+                        System.out.println("Usuario canceló la selección de envío");
                         // Usuario canceló
                         return;
                     }
                     direccionEnvio[0] = envioDialog.getDireccionEnvio();
                     costoEnvio[0] = envioDialog.getCostoEnvio();
+                    System.out.println("Tipo de envío seleccionado: " + tipoEnvio[0] + ", Costo: " + costoEnvio[0]);
                 } else {
                     tipoEnvio[0] = Compra.TipoEnvio.TIENDA;
                 }
                 
-                // Paso 3: Seleccionar/Registrar tarjeta
+                // Paso 2: Seleccionar/Registrar tarjeta
+                System.out.println("=== PASO 2: Seleccionando tarjeta ===");
                 final Tarjeta[] tarjetaSeleccionada = {null};
                 if (gestorTarjetas != null) {
-                    TarjetaDialog tarjetaDialog = new TarjetaDialog(this, gestorTarjetas);
-                    SwingUtilities.invokeLater(() -> tarjetaDialog.setVisible(true));
+                    System.out.println("GestorTarjetas disponible, mostrando diálogo...");
+                    final TarjetaDialog[] tarjetaDialog = {new TarjetaDialog(this, gestorTarjetas)};
+                    
+                    // Mostrar diálogo de forma síncrona
+                    try {
+                        SwingUtilities.invokeAndWait(() -> {
+                            tarjetaDialog[0].setVisible(true);
+                            System.out.println("Diálogo de tarjeta visible");
+                        });
+                    } catch (Exception ex) {
+                        System.err.println("Error al mostrar diálogo de tarjeta: " + ex.getMessage());
+                        SwingUtilities.invokeLater(() -> tarjetaDialog[0].setVisible(true));
+                    }
                     
                     // Esperar a que el usuario seleccione una tarjeta
-                    while (tarjetaDialog.isVisible()) {
+                    System.out.println("Esperando selección de tarjeta...");
+                    while (tarjetaDialog[0].isVisible()) {
                         Thread.sleep(100);
                     }
                     
-                    tarjetaSeleccionada[0] = tarjetaDialog.getTarjetaSeleccionada();
+                    tarjetaSeleccionada[0] = tarjetaDialog[0].getTarjetaSeleccionada();
+                    System.out.println("Tarjeta seleccionada: " + (tarjetaSeleccionada[0] != null ? tarjetaSeleccionada[0].toString() : "null"));
                     if (tarjetaSeleccionada[0] == null) {
-                        // Usuario canceló
+                        System.out.println("Usuario canceló la selección de tarjeta - ABORTANDO PAGO");
+                        SwingUtilities.invokeLater(() -> 
+                            JOptionPane.showMessageDialog(this, 
+                                "Pago cancelado. Debe seleccionar una tarjeta para continuar.", 
+                                "Pago Cancelado", 
+                                JOptionPane.WARNING_MESSAGE));
                         return;
                     }
+                } else {
+                    System.out.println("GestorTarjetas no disponible, continuando sin tarjeta");
                 }
                 
-                // Paso 4: Procesar pago con tarjeta
+                System.out.println("=== PROCESANDO PAGO ===");
+                System.out.println("Estado actual:");
+                System.out.println("  - gestorTarjetas: " + (gestorTarjetas != null ? "disponible" : "null"));
+                System.out.println("  - tarjetaSeleccionada: " + (tarjetaSeleccionada[0] != null ? tarjetaSeleccionada[0].toString() : "null"));
+                
+                // Paso 3: Procesar pago con tarjeta
+                double montoTotal = carritoCompra.getTotalConDescuento() + costoEnvio[0];
+                System.out.println("=== PASO 3: Procesando pago ===");
+                System.out.println("Monto total: " + montoTotal);
                 boolean pagoExitoso = false;
                 if (gestorTarjetas != null && tarjetaSeleccionada[0] != null) {
-                    double montoTotal = carritoCompra.getTotalConDescuento() + costoEnvio[0];
+                    System.out.println("Procesando pago con tarjeta ID: " + tarjetaSeleccionada[0].getId());
                     pagoExitoso = gestorTarjetas.procesarPagoConTarjeta(
                         tarjetaSeleccionada[0].getId(), montoTotal);
+                    System.out.println("Resultado del pago: " + pagoExitoso);
                 } else {
+                    System.out.println("Procesando pago en efectivo (gestorTarjetas o tarjeta no disponible)");
                     // Simular pago en efectivo
                     pagoExitoso = simularProcesamientoPago();
+                    System.out.println("Resultado del pago: " + pagoExitoso);
                 }
                 
+                System.out.println("Pago procesado. Resultado: " + pagoExitoso);
+                
                 if (pagoExitoso) {
-                    // Paso 5: Generar folio y guardar compra
+                    System.out.println("=== PAGO EXITOSO - GUARDANDO COMPRA ===");
+                    // Paso 4: Generar folio y guardar compra
                     final String[] folio = {null};
                     if (gestorHistorial != null) {
                         folio[0] = gestorHistorial.generarFolio();
@@ -423,21 +459,30 @@ public class CatalogoFrame extends JFrame {
                         System.err.println("ERROR: finalizadorCompra es null, no se puede guardar la compra");
                     }
                     
-                    // Paso 6: Generar ticket (con folio y datos de envío)
+                    // Paso 6: Mostrar mensaje de pago exitoso
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(this,
+                            "¡Pago procesado exitosamente!\n\n" +
+                            "Su compra ha sido confirmada y guardada.",
+                            "Pago Exitoso",
+                            JOptionPane.INFORMATION_MESSAGE);
+                    });
+                    
+                    // Paso 7: Generar ticket (con folio y datos de envío)
                     final Compra.TipoEnvio tipoEnvioFinal = tipoEnvio[0];
                     final String direccionEnvioFinal = direccionEnvio[0];
                     final double costoEnvioFinal = costoEnvio[0];
                     SwingUtilities.invokeLater(() -> generarTicket(folio[0], tipoEnvioFinal, direccionEnvioFinal, costoEnvioFinal));
                     
-                    // Paso 7: Limpiar carrito
+                    // Paso 8: Limpiar carrito
                     carritoCompra.limpiar();
                     SwingUtilities.invokeLater(() -> actualizarCarrito());
                     
-                    // Paso 8: Mostrar confirmación
+                    // Paso 9: Mostrar confirmación final
                     final String folioFinal = folio[0];
                     SwingUtilities.invokeLater(() -> mostrarConfirmacionCompra(folioFinal));
                     
-                    // Paso 9: Cerrar sesión después de un delay
+                    // Paso 10: Cerrar sesión después de un delay
                     cerrarSesionDespuesDeCompra();
                 } else {
                     SwingUtilities.invokeLater(() -> 

@@ -204,11 +204,13 @@ public class EnvioDialog extends JDialog {
         // Panel de botones
         JPanel panelBotones = new JPanel(new FlowLayout());
 
-        botonAceptar = new JButton("Aceptar");
+        botonAceptar = new JButton("PAGAR");
+        botonAceptar.setFont(new Font("Arial", Font.BOLD, 16));
         botonAceptar.setBackground(new Color(40, 167, 69));
         botonAceptar.setForeground(Color.WHITE);
         botonAceptar.setBorderPainted(false);
         botonAceptar.setFocusPainted(false);
+        botonAceptar.setPreferredSize(new Dimension(150, 45));
         botonAceptar.addActionListener(e -> {
             if (radioDomicilio.isSelected()) {
                 if (!validarFormulario()) {
@@ -220,6 +222,7 @@ public class EnvioDialog extends JDialog {
                 tipoEnvioSeleccionado = Compra.TipoEnvio.TIENDA;
                 direccionEnvio = null;
             }
+            System.out.println("Botón PAGAR presionado en diálogo de envío");
             dispose();
         });
 

@@ -85,6 +85,7 @@ public class TarjetaDialog extends JDialog {
         botonSeleccionar.addActionListener(e -> {
             if (comboBoxTarjetas.getSelectedItem() != null) {
                 tarjetaSeleccionada = (Tarjeta) comboBoxTarjetas.getSelectedItem();
+                System.out.println("Tarjeta seleccionada: " + tarjetaSeleccionada.toString());
                 dispose();
             } else {
                 JOptionPane.showMessageDialog(this, "Por favor seleccione una tarjeta", 
@@ -97,7 +98,10 @@ public class TarjetaDialog extends JDialog {
         botonCancelar.setForeground(Color.WHITE);
         botonCancelar.setBorderPainted(false);
         botonCancelar.setFocusPainted(false);
-        botonCancelar.addActionListener(e -> dispose());
+        botonCancelar.addActionListener(e -> {
+            tarjetaSeleccionada = null; // Asegurar que sea null si se cancela
+            dispose();
+        });
 
         panelBotones.add(botonRegistrar);
         panelBotones.add(botonSeleccionar);
