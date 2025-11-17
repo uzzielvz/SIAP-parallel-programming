@@ -62,8 +62,8 @@ public class GestorEnvio implements Runnable {
         if (direccion == null || direccion.trim().isEmpty()) {
             return false;
         }
-        // Validación básica: debe tener al menos 10 caracteres
-        return direccion.trim().length() >= 10;
+        // Validación básica: debe tener al menos 20 caracteres (dirección completa)
+        return direccion.trim().length() >= 20;
     }
 }
 

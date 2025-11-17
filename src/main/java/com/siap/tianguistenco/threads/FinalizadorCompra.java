@@ -250,6 +250,13 @@ public class FinalizadorCompra implements Runnable {
     public Compra guardarCompra(String folio, Compra.TipoEnvio tipoEnvio, String direccionEnvio, 
                                 double costoEnvio, Integer tarjetaId) {
         try {
+            System.out.println("=== INICIANDO GUARDADO DE COMPRA ===");
+            System.out.println("Usuario ID: " + usuarioId);
+            System.out.println("Folio: " + folio);
+            System.out.println("Total carrito: " + carritoCompra.getTotal());
+            System.out.println("Descuento: " + carritoCompra.getDescuento());
+            System.out.println("Items en carrito: " + carritoCompra.getItems().size());
+            
             Compra compra = new Compra();
             compra.setUsuarioId(usuarioId);
             compra.setFolio(folio);
@@ -271,28 +278,40 @@ public class FinalizadorCompra implements Runnable {
                 item.setPrecioUnitario(itemCarrito.getProducto().getPrecio());
                 item.setSubtotal(itemCarrito.getSubtotal());
                 itemsCompra.add(item);
+                System.out.println("  - Item: " + item.getNombreProducto() + " x" + item.getCantidad());
             }
             compra.setItems(itemsCompra);
 
             // Guardar compra en BD
+            System.out.println("Guardando compra en base de datos...");
             int compraId = compraDAO.guardarCompra(compra);
             if (compraId > 0) {
                 compra.setId(compraId);
+                System.out.println("Compra guardada con ID: " + compraId);
 
                 // Guardar método de pago
                 double montoTotal = compra.getTotalConDescuento();
+                System.out.println("Guardando método de pago. Monto: " + montoTotal);
+                boolean metodoPagoGuardado = false;
                 if (tarjetaId != null) {
-                    metodoPagoDAO.registrarMetodoPago(compraId, "TARJETA", tarjetaId, montoTotal);
+                    metodoPagoGuardado = metodoPagoDAO.registrarMetodoPago(compraId, "TARJETA", tarjetaId, montoTotal);
+                    System.out.println("Método de pago TARJETA guardado: " + metodoPagoGuardado);
                 } else {
-                    metodoPagoDAO.registrarMetodoPago(compraId, "EFECTIVO", null, montoTotal);
+                    metodoPagoGuardado = metodoPagoDAO.registrarMetodoPago(compraId, "EFECTIVO", null, montoTotal);
+                    System.out.println("Método de pago EFECTIVO guardado: " + metodoPagoGuardado);
                 }
 
-                System.out.println("Compra guardada exitosamente: Folio=" + folio + ", ID=" + compraId);
+                System.out.println("=== COMPRA GUARDADA EXITOSAMENTE ===");
+                System.out.println("Folio: " + folio);
+                System.out.println("ID: " + compraId);
+                System.out.println("Total: $" + String.format("%.2f", montoTotal));
                 return compra;
+            } else {
+                System.err.println("ERROR: No se pudo guardar la compra. compraId = " + compraId);
             }
 
         } catch (Exception e) {
-            System.err.println("Error al guardar compra: " + e.getMessage());
+            System.err.println("ERROR al guardar compra: " + e.getMessage());
             e.printStackTrace();
         }
 

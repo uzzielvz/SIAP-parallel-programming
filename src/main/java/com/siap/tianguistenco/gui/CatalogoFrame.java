@@ -400,8 +400,27 @@ public class CatalogoFrame extends JFrame {
                     Compra compraGuardada = null;
                     if (finalizadorCompra != null) {
                         Integer tarjetaId = tarjetaSeleccionada[0] != null ? tarjetaSeleccionada[0].getId() : null;
+                        System.out.println("Llamando a guardarCompra con:");
+                        System.out.println("  - Folio: " + folio[0]);
+                        System.out.println("  - Tipo Envío: " + tipoEnvio[0]);
+                        System.out.println("  - Dirección: " + (direccionEnvio[0] != null ? direccionEnvio[0] : "N/A"));
+                        System.out.println("  - Costo Envío: " + costoEnvio[0]);
+                        System.out.println("  - Tarjeta ID: " + tarjetaId);
                         compraGuardada = finalizadorCompra.guardarCompra(
                             folio[0], tipoEnvio[0], direccionEnvio[0], costoEnvio[0], tarjetaId);
+                        if (compraGuardada == null) {
+                            System.err.println("ERROR: No se pudo guardar la compra. compraGuardada es null");
+                            SwingUtilities.invokeLater(() -> 
+                                JOptionPane.showMessageDialog(this, 
+                                    "Error al guardar la compra en el historial.\n" +
+                                    "La compra se completó pero no se guardó en la base de datos.", 
+                                    "Advertencia", 
+                                    JOptionPane.WARNING_MESSAGE));
+                        } else {
+                            System.out.println("Compra guardada exitosamente en el historial");
+                        }
+                    } else {
+                        System.err.println("ERROR: finalizadorCompra es null, no se puede guardar la compra");
                     }
                     
                     // Paso 6: Generar ticket (con folio y datos de envío)
