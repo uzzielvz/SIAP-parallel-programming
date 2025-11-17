@@ -155,15 +155,34 @@ public class CatalogoFrame extends JFrame {
         List<String> categorias = productoDAO.obtenerCategorias();
         
         for (String categoria : categorias) {
-            JPanel panelCategoria = new JPanel(new GridLayout(0, 3, 10, 10));
-            panelCategoria.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+            // Usar GridBagLayout para 4 columnas con tamaño fijo
+            JPanel panelCategoria = new JPanel(new GridBagLayout());
+            panelCategoria.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+            panelCategoria.setBackground(new Color(245, 245, 245));
 
             // Obtener productos de esta categoría
             List<Producto> productos = productoDAO.obtenerProductosPorCategoria(categoria);
             
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(10, 10, 10, 10);
+            gbc.anchor = GridBagConstraints.NORTHWEST;
+            gbc.fill = GridBagConstraints.NONE; // No expandir para mantener tamaño fijo
+            
+            int columna = 0;
+            int fila = 0;
+            
             for (Producto producto : productos) {
                 JPanel tarjetaProducto = crearTarjetaProducto(producto);
-                panelCategoria.add(tarjetaProducto);
+                
+                gbc.gridx = columna;
+                gbc.gridy = fila;
+                panelCategoria.add(tarjetaProducto, gbc);
+                
+                columna++;
+                if (columna >= 4) {
+                    columna = 0;
+                    fila++;
+                }
             }
 
             JScrollPane scrollCategoria = new JScrollPane(panelCategoria);
@@ -176,42 +195,44 @@ public class CatalogoFrame extends JFrame {
 
     private JPanel crearTarjetaProducto(Producto producto) {
         JPanel tarjeta = new JPanel(new BorderLayout());
-        tarjeta.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(200, 200, 200)),
-            BorderFactory.createEmptyBorder(10, 10, 10, 10)
-        ));
-        tarjeta.setPreferredSize(new Dimension(200, 150));
+        // Borde muy sutil o sin borde para un look más limpio
+        tarjeta.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        // Tamaño fijo y moderado independiente del número de productos
+        Dimension tamanoFijo = new Dimension(220, 140);
+        tarjeta.setPreferredSize(tamanoFijo);
+        tarjeta.setMaximumSize(tamanoFijo);
+        tarjeta.setMinimumSize(tamanoFijo);
         tarjeta.setBackground(Color.WHITE);
 
-        // Imagen placeholder
-        JLabel imagen = new JLabel("📦", JLabel.CENTER);
-        imagen.setFont(new Font("Arial", Font.PLAIN, 48));
-        imagen.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220)));
-        imagen.setPreferredSize(new Dimension(80, 80));
-        tarjeta.add(imagen, BorderLayout.NORTH);
-
-        // Información del producto
+        // Información del producto (sin espacio para imagen)
         JPanel panelInfo = new JPanel(new BorderLayout());
+        panelInfo.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        panelInfo.setBackground(Color.WHITE);
         
+        // Nombre del producto (más grande y claro)
         JLabel nombre = new JLabel("<html><div style='text-align: center;'>" + 
-            producto.getNombre().replaceAll("(.{20})", "$1<br/>") + "</div></html>");
-        nombre.setFont(new Font("Arial", Font.BOLD, 10));
+            producto.getNombre().replaceAll("(.{30})", "$1<br/>") + "</div></html>");
+        nombre.setFont(new Font("Arial", Font.BOLD, 13));
         nombre.setHorizontalAlignment(JLabel.CENTER);
+        nombre.setForeground(new Color(30, 30, 30));
         panelInfo.add(nombre, BorderLayout.NORTH);
 
+        // Precio (más prominente)
         JLabel precio = new JLabel(formatoMoneda.format(producto.getPrecio()));
-        precio.setFont(new Font("Arial", Font.BOLD, 12));
+        precio.setFont(new Font("Arial", Font.BOLD, 18));
         precio.setForeground(new Color(0, 102, 204));
         precio.setHorizontalAlignment(JLabel.CENTER);
+        precio.setBorder(BorderFactory.createEmptyBorder(15, 0, 15, 0));
         panelInfo.add(precio, BorderLayout.CENTER);
 
         // Botón agregar
         JButton botonAgregar = new JButton("Agregar");
-        botonAgregar.setFont(new Font("Arial", Font.BOLD, 10));
-        botonAgregar.setBackground(new Color(0, 102, 204));
+        botonAgregar.setFont(new Font("Arial", Font.BOLD, 13));
+        botonAgregar.setBackground(new Color(40, 167, 69));
         botonAgregar.setForeground(Color.WHITE);
         botonAgregar.setBorderPainted(false);
         botonAgregar.setFocusPainted(false);
+        botonAgregar.setPreferredSize(new Dimension(180, 40));
         botonAgregar.addActionListener(e -> {
             selectorProductos.agregarAlCarrito(producto);
             actualizarCarrito();
